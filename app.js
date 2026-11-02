@@ -22,6 +22,15 @@
   let editingId = null;
   let sort = { key: "expected_date", desc: false };
   let channel = null;
+  const expanded = new Set();
+  const DAYMS = 86400000;
+  const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / DAYMS);
+  const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleString(undefined,
+    { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+  // Show unexpected errors instead of failing silently.
+  window.addEventListener("error", (e) => { try { toast("Something went wrong: " + e.message, 6000); } catch (_) {} });
+  window.addEventListener("unhandledrejection", (e) => { try { toast("Something went wrong: " + (e.reason?.message || e.reason), 6000); } catch (_) {} });
 
   function toast(msg, ms = 2600) {
     if (/start_date/.test(msg) && /column|schema/i.test(msg))
@@ -148,8 +157,56 @@
     const { error } = await sb.from("feature_requests").delete().eq("id", id);
     if (error) return toast("Delete failed: " + error.message, 5000);
     rows = rows.filter((x) => x.id !== id);
+    expanded.delete(id);
     if (editingId === id) resetForm();
     render();
+  }
+
+  /* ---------- Task details (expanded row) ---------- */
+  function timing(r) {
+    const t = todayISO();
+    if (r.status === "Complete") return r.expected_date ? `Completed (target was ${fmtDate(r.expected_date)})` : "Completed";
+    if (r.expected_date) {
+      const d = daysBetween(t, r.expected_date);
+      if (d < 0) return `<span class="overdue">Overdue by ${-d} day${d === -1 ? "" : "s"}</span>`;
+      if (d === 0) return `<span class="overdue">Due today</span>`;
+      return `Due in ${d} day${d === 1 ? "" : "s"}`;
+    }
+    if (r.start_date) {
+      const d = daysBetween(t, r.start_date);
+      return d > 0 ? `Starts in ${d} day${d === 1 ? "" : "s"}` : "Started, no completion date";
+    }
+    return "No dates set";
+  }
+  function detailRow(r) {
+    const dur = r.start_date && r.expected_date ? `${daysBetween(r.start_date, r.expected_date) + 1} days` : "—";
+    const item = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+    return `<tr class="detail-row"><td colspan="7"><div class="detail">
+      <div class="detail-desc"><dt>Description</dt><dd>${r.description ? esc(r.description) : '<span class="muted">No description</span>'}</dd></div>
+      <dl class="detail-grid">
+        ${item("Status", `<span class="pill" style="--c:${STATUS_COLOR[r.status]}">${r.status}</span>`)}
+        ${item("Timing", timing(r))}
+        ${item("Requested by", esc(r.requested_by) || "—")}
+        ${item("Assigned developer", esc(r.assigned_to) || "Unassigned")}
+        ${item("Expected start", fmtDate(r.start_date))}
+        ${item("Expected completion", fmtDate(r.expected_date))}
+        ${item("Planned duration", dur)}
+        ${item("Logged", fmtDateTime(r.created_at))}
+        ${item("Last updated", fmtDateTime(r.updated_at) + (r.updated_by ? ` by ${esc(r.updated_by)}` : ""))}
+      </dl>
+      <div class="row-gap"><button class="btn small" data-edit="${r.id}">Edit</button>
+        <button class="btn small danger" data-del="${r.id}">Delete</button>
+        <button class="btn small ghost" data-expand="${r.id}">Collapse</button></div>
+    </div></td></tr>`;
+  }
+  // Open a task from anywhere (e.g. the Overview tab): switch to the list and expand it.
+  function openTask(id) {
+    if (!rows.some((r) => r.id === id)) return;
+    expanded.add(id);
+    if (!filtered().some((r) => r.id === id)) { $("#search").value = ""; $("#filterStatus").value = ""; $("#filterDev").value = ""; }
+    setView("list"); render();
+    const tr = document.querySelector(`tr[data-row="${id}"]`);
+    if (tr) { tr.scrollIntoView({ behavior: "smooth", block: "center" }); tr.classList.add("flash"); setTimeout(() => tr.classList.remove("flash"), 1500); }
   }
 
   /* ---------- Rendering ---------- */
@@ -196,8 +253,10 @@
     const list = sorted(filtered());
     $("#reqTable tbody").innerHTML = list.map((r) => {
       const overdue = r.expected_date && r.expected_date < today && r.status !== "Complete";
-      return `<tr>
-        <td><b>${esc(r.title)}</b>${r.description ? `<div class="desc">${esc(r.description)}</div>` : ""}</td>
+      const open = expanded.has(r.id);
+      return `<tr class="${open ? "is-open" : ""}" data-row="${r.id}">
+        <td><button class="title-btn" data-expand="${r.id}" aria-expanded="${open}"><span class="chev">${open ? "▾" : "▸"}</span>${esc(r.title)}</button>
+          ${r.description && !open ? `<div class="desc clamp">${esc(r.description)}</div>` : ""}</td>
         <td>${esc(r.requested_by) || '<span class="muted">—</span>'}</td>
         <td>${esc(r.assigned_to) || '<span class="muted">Unassigned</span>'}</td>
         <td><select class="status-select" data-id="${r.id}" style="--c:${STATUS_COLOR[r.status]}">
@@ -208,7 +267,7 @@
         <td class="actions">
           <button class="btn small" data-edit="${r.id}">Edit</button>
           <button class="btn small danger" data-del="${r.id}">Delete</button>
-        </td></tr>`;
+        </td></tr>${open ? detailRow(r) : ""}`;
     }).join("");
     $("#emptyMsg").hidden = list.length > 0;
     $("#emptyMsg").textContent = rows.length ? "No requests match these filters." : "No requests yet. Add the first one above.";
@@ -220,7 +279,12 @@
   }
 
   $("#reqTable").addEventListener("click", (e) => {
-    const t = e.target;
+    const t = e.target.closest("[data-expand],[data-edit],[data-del],[data-sort]") || e.target;
+    if (t.dataset.expand) {
+      const id = t.dataset.expand;
+      expanded.has(id) ? expanded.delete(id) : expanded.add(id);
+      return render();
+    }
     if (t.dataset.edit) startEdit(t.dataset.edit);
     if (t.dataset.del) remove(t.dataset.del);
     if (t.dataset.sort) {
@@ -270,7 +334,7 @@
     const todayLine = `<div class="today" style="left:${pct(now)}%"></div>`;
 
     const body = list.map((r) => {
-      const lbl = `<div class="lbl"><b title="${esc(r.title)}">${esc(r.title)}</b>
+      const lbl = `<div class="lbl"><b title="${esc(r.title)}" data-open="${r.id}">${esc(r.title)}</b>
         <small>${esc(r.assigned_to || "Unassigned")} · ${r.status}</small></div>`;
       if (!r.expected_date && !r.start_date) return lbl + `<div class="track">${grid}${todayLine}<div class="nodate">No dates set</div></div>`;
       const s = barStart(r), e = barEnd(r);
@@ -280,7 +344,7 @@
       const late = r.expected_date && r.expected_date < todayISO() && r.status !== "Complete";
       const est = r.start_date ? "" : " est";       // no explicit start: lighter bar
       return lbl + `<div class="track">${grid}${todayLine}
-        <div class="bar${open ? " open" : ""}${est}${late ? " late" : ""}" style="left:${left}%;width:${width}%;--c:${STATUS_COLOR[r.status]}"
+        <div class="bar${open ? " open" : ""}${est}${late ? " late" : ""}" data-open="${r.id}" style="left:${left}%;width:${width}%;--c:${STATUS_COLOR[r.status]}"
           title="${esc(dateRange(r))}">${esc(dateRange(r))}</div></div>`;
     }).join("");
 
@@ -298,7 +362,7 @@
       const items = list.filter((r) => r.status === s).sort(byDate("expected_date"));
       return `<div class="col" style="--c:${STATUS_COLOR[s]}">
         <h4><span>${s}</span><span>${items.length}</span></h4>
-        ${items.map((r) => `<div class="tile"><b>${esc(r.title)}</b>
+        ${items.map((r) => `<div class="tile" data-open="${r.id}"><b>${esc(r.title)}</b>
           <div class="meta"><span>${esc(r.assigned_to || "Unassigned")}</span></div>
           <div class="meta"><span>${esc(dateRange(r))}</span></div>
           ${r.requested_by ? `<div class="meta"><span>Requested by ${esc(r.requested_by)}</span></div>` : ""}
@@ -331,6 +395,10 @@
     renderOverview();
   }
   document.querySelectorAll(".navtab").forEach((t) => t.addEventListener("click", () => setView(t.dataset.view)));
+  $("#overviewArea").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-open]");
+    if (t) openTask(t.dataset.open);
+  });
   document.querySelectorAll(".ovtab").forEach((t) => t.addEventListener("click", () => { overviewMode = t.dataset.mode; renderOverview(); }));
   ["#ovDone", "#ovDev"].forEach((s) => $(s).addEventListener("change", renderOverview));
 
@@ -404,6 +472,12 @@
     if (!raw.length) {
       const ask = /\b(could (we|you)|can (we|you)|would (be great|love|like)|it would be|please|need|we want|wish|should|add|allow|support|ability to)\b/i;
       raw = body.join(" ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 15 && ask.test(s));
+    }
+    if (!raw.length) {
+      // last resort: each paragraph that isn't a greeting or sign-off
+      const skip = /^(hi|hello|hey|dear|thanks|thank you|cheers|best|regards|kind regards|sent from)\b/i;
+      raw = body.join("\n").split(/\n\s*\n/).map((p) => p.replace(/\s+/g, " ").trim())
+        .filter((p) => p.length > 15 && !skip.test(p));
     }
     return {
       sender,
@@ -512,6 +586,87 @@
     if (!rows.some((r) => r.id === data.id)) rows.push(data);
     it.done = true; wiz.saved++; wiz.idx++; render(); showReview();
   });
+
+  /* ---------- Delete duplicates (asks one by one) ---------- */
+  const RANK = { "Request": 0, "Accepted": 1, "In Development": 2, "Complete": 3 };
+  const normTitle = (t) => (t || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const dup = { pairs: [], idx: 0, deleted: 0, removed: new Set() };
+
+  function findDuplicates() {
+    const groups = new Map();
+    for (const r of rows) {
+      const k = normTitle(r.title); if (!k) continue;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    }
+    const pairs = [];
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      // keep the most progressed one, then the oldest
+      g.sort((a, b) => (RANK[b.status] - RANK[a.status]) || ((a.created_at || "") < (b.created_at || "") ? -1 : 1));
+      for (const d of g.slice(1)) pairs.push({ keepId: g[0].id, dupId: d.id });
+    }
+    return pairs;
+  }
+  function dupCard(r, label) {
+    const f = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+    return `<div class="dup-card"><div class="dup-label">${label}</div><b>${esc(r.title)}</b>
+      <dl class="detail-grid one">
+        ${f("Status", `<span class="pill" style="--c:${STATUS_COLOR[r.status]}">${r.status}</span>`)}
+        ${f("Description", esc(r.description) || "—")}
+        ${f("Requested by", esc(r.requested_by) || "—")}
+        ${f("Developer", esc(r.assigned_to) || "Unassigned")}
+        ${f("Dates", esc(dateRange(r)))}
+        ${f("Logged", fmtDateTime(r.created_at))}
+      </dl></div>`;
+  }
+  function showDup() {
+    // skip pairs where one side is already gone
+    while (dup.idx < dup.pairs.length) {
+      const p = dup.pairs[dup.idx];
+      if (!dup.removed.has(p.keepId) && !dup.removed.has(p.dupId) && rows.some((r) => r.id === p.keepId) && rows.some((r) => r.id === p.dupId)) break;
+      dup.idx++;
+    }
+    if (dup.idx >= dup.pairs.length) {
+      $("#dupBody").innerHTML = `<p>${dup.deleted ? `Deleted <b>${dup.deleted}</b> duplicate${dup.deleted === 1 ? "" : "s"}.` : "Nothing was deleted."}</p>`;
+      $("#dupActions").hidden = true; $("#dupDone").hidden = false;
+      $("#dupCounter").textContent = "All done";
+      return;
+    }
+    const p = dup.pairs[dup.idx];
+    const keep = rows.find((r) => r.id === p.keepId), d = rows.find((r) => r.id === p.dupId);
+    $("#dupCounter").textContent = `Duplicate ${dup.idx + 1} of ${dup.pairs.length}`;
+    $("#dupBody").innerHTML = `<p class="muted">These two requests have the same name. Delete the one on the right?</p>
+      <div class="dup-grid">${dupCard(keep, "Keep")}${dupCard(d, "Duplicate — delete?")}</div>`;
+    $("#dupActions").hidden = false; $("#dupDone").hidden = true;
+  }
+  async function dupDelete(id) {
+    const btns = document.querySelectorAll("#dupActions button"); btns.forEach((b) => (b.disabled = true));
+    const { error } = await sb.from("feature_requests").delete().eq("id", id);
+    btns.forEach((b) => (b.disabled = false));
+    if (error) { toast("Delete failed: " + error.message, 5000); return false; }
+    rows = rows.filter((x) => x.id !== id); expanded.delete(id); dup.removed.add(id); dup.deleted++;
+    render(); return true;
+  }
+  $("#dupBtn").addEventListener("click", () => {
+    const pairs = findDuplicates();
+    if (!pairs.length) return toast("No duplicate names found.");
+    Object.assign(dup, { pairs, idx: 0, deleted: 0, removed: new Set() });
+    showDup(); $("#dupDlg").showModal();
+  });
+  $("#dupDelete").addEventListener("click", async () => {
+    if (await dupDelete(dup.pairs[dup.idx].dupId)) { dup.idx++; showDup(); }
+  });
+  $("#dupSwap").addEventListener("click", async () => {
+    const p = dup.pairs[dup.idx];
+    if (!(await dupDelete(p.keepId))) return;
+    // the survivor becomes the one to keep for the rest of this group
+    for (const q of dup.pairs.slice(dup.idx + 1)) if (q.keepId === p.keepId) q.keepId = p.dupId;
+    dup.idx++; showDup();
+  });
+  $("#dupKeep").addEventListener("click", () => { dup.idx++; showDup(); });
+  $("#dupStop").addEventListener("click", () => $("#dupDlg").close());
+  $("#dupClose").addEventListener("click", () => $("#dupDlg").close());
 
   initAuth();
 })();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Feature Tracker</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -89,6 +89,7 @@
           <option>In Development</option><option>Complete</option>
         </select>
         <select id="filterDev"><option value="">All developers</option></select>
+        <button class="btn" id="dupBtn" type="button">Delete duplicates</button>
       </div>
       <div class="table-wrap">
         <table id="reqTable">
@@ -189,12 +190,32 @@
     </div>
   </dialog>
 
+  <!-- Delete duplicates -->
+  <dialog id="dupDlg" class="wizard">
+    <div class="dlg-head">
+      <h2 style="margin:0">Delete duplicates <span id="dupCounter" class="muted" style="font-weight:400;font-size:14px"></span></h2>
+      <button class="btn ghost" id="dupClose" type="button">Close</button>
+    </div>
+    <div class="wiz-body">
+      <div id="dupBody"></div>
+      <div id="dupActions" class="row-between wiz-foot">
+        <button class="btn ghost" id="dupStop" type="button">Stop</button>
+        <div class="row-gap">
+          <button class="btn" id="dupKeep" type="button">Keep both</button>
+          <button class="btn" id="dupSwap" type="button">Delete the left one instead</button>
+          <button class="btn primary danger-fill" id="dupDelete" type="button">Delete duplicate</button>
+        </div>
+      </div>
+      <div id="dupDone" class="row-end wiz-foot" hidden><button class="btn primary" id="dupFinish" type="button" onclick="this.closest('dialog').close()">Done</button></div>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" hidden></div>
 
-  <script src="config.js"></script>
+  <script src="config.js?v=4"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
