@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Feature Tracker</title>
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <header class="topbar">
@@ -12,6 +12,7 @@
     <div class="topbar-right">
       <span id="userEmail" class="muted"></span>
       <button id="exportBtn" class="btn primary" hidden>Export</button>
+      <button id="passBtn" class="btn ghost" hidden>Set password</button>
       <button id="signOutBtn" class="btn" hidden>Sign out</button>
     </div>
   </header>
@@ -19,10 +20,11 @@
   <!-- Sign in -->
   <main id="authView" class="card narrow" hidden>
     <h2>Sign in</h2>
-    <p class="muted">Enter your work email and we'll send you a sign-in link. Ask the tracker owner to invite you if you don't have access yet.</p>
     <form id="authForm" class="stack">
       <input id="authEmail" type="email" required placeholder="you@company.com" autocomplete="email">
-      <button class="btn primary" type="submit">Send sign-in link</button>
+      <input id="authPass" type="password" placeholder="Password" autocomplete="current-password">
+      <button class="btn primary" type="submit">Sign in</button>
+      <button class="btn ghost" type="button" id="authLink">No password yet? Email me a sign-in link</button>
     </form>
     <p id="authMsg" class="muted"></p>
   </main>
@@ -212,10 +214,10 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="config.js?v=4"></script>
+  <script src="config.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

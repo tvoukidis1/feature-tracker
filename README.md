@@ -43,7 +43,9 @@ The wizard shows an **AI** badge when the function is working, or **basic mode**
 ## Adding teammates
 
 Supabase → *Authentication → Users → Add user → Send invitation*, enter their email.
-They click the invite, then sign in on the tracker with their email (a sign-in link is emailed each time).
+They click the invite, then click **Set password** in the tracker so later sign-ins use email + password.
+Supabase's built-in email sender only allows a few emails per hour; for more, add custom SMTP under *Authentication → Emails → SMTP Settings*.
+You can also create a teammate directly with a password: *Authentication → Users → Add user → Create new user* (tick *Auto confirm*).
 
 ## Files
 

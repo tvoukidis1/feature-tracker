@@ -53,6 +53,7 @@
     $("#appView").hidden = !u;
     $("#exportBtn").hidden = !u;
     $("#signOutBtn").hidden = !u;
+    $("#passBtn").hidden = !u;
     $("#userEmail").textContent = u?.email || "";
     if (u && changed) {
       let v = "list"; try { v = localStorage.getItem("ft-view") || "list"; } catch (_) {}
@@ -61,19 +62,41 @@
     if (!u && channel) { sb.removeChannel(channel); channel = null; }
   }
 
+  const authMsg = (t) => ($("#authMsg").textContent = t);
   $("#authForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const email = $("#authEmail").value.trim(), password = $("#authPass").value;
+    if (!password) return sendLink();
+    authMsg("Signing in…");
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    authMsg(error ? (/invalid/i.test(error.message)
+      ? "Wrong email or password. If you've never set a password, use the sign-in link below, then click \"Set password\"."
+      : "Couldn't sign in: " + error.message) : "");
+  });
+  async function sendLink() {
     const email = $("#authEmail").value.trim();
-    $("#authMsg").textContent = "Sending…";
+    if (!email) return authMsg("Enter your email first.");
+    authMsg("Sending…");
     const { error } = await sb.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false, emailRedirectTo: location.href.split("#")[0] },
     });
-    $("#authMsg").textContent = error
+    authMsg(error
       ? (/signups not allowed|not found/i.test(error.message)
           ? "That email hasn't been invited yet. Ask the tracker owner to invite you."
-          : "Couldn't send link: " + error.message)
-      : "Check your inbox for the sign-in link.";
+          : /rate limit/i.test(error.message)
+            ? "Too many sign-in emails were sent recently (Supabase's free email limit). Use your password, or try again in an hour."
+            : "Couldn't send link: " + error.message)
+      : "Check your inbox for the sign-in link. Once you're in, click \"Set password\" so you won't need emails again.");
+  }
+  $("#authLink").addEventListener("click", sendLink);
+  $("#passBtn").addEventListener("click", async () => {
+    const p1 = prompt("Choose a password (at least 8 characters):");
+    if (p1 == null) return;
+    if (p1.length < 8) return toast("Password must be at least 8 characters.", 4000);
+    if (prompt("Type it again to confirm:") !== p1) return toast("Passwords didn't match.", 4000);
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    toast(error ? "Couldn't set password: " + error.message : "Password set. Next time, sign in with email + password.", 5000);
   });
   $("#signOutBtn").addEventListener("click", () => sb.auth.signOut());
 
