@@ -2,7 +2,7 @@
 
 A simple team tool for logging feature requests: who asked for it, which developer owns it,
 its status (Request → Accepted → In Development → Complete) and its expected completion date.
-The **Export** button shows the current (filtered) list as a **timeline** or a **status board**,
+The **Overview** tab shows open requests live as a timeline (expected start → completion) or a status board. The **Export** button shows the current (filtered) list as a **timeline** or a **status board**,
 and downloads either as PNG or PDF.
 
 Static site (plain HTML/CSS/JS) hosted on GitHub Pages, with shared data in Supabase.
@@ -17,6 +17,11 @@ Static site (plain HTML/CSS/JS) hosted on GitHub Pages, with shared data in Supa
 4. **GitHub Pages** – in the repo: *Settings → Pages → Build and deployment*, Source
    "Deploy from a branch", branch `main`, folder `/ (root)`, Save. The site appears at
    `https://tvoukidis1.github.io/feature-tracker/` within a minute or two.
+
+## Updating an existing database
+
+If you set up the database before the *Expected start* date existed, run
+`supabase-migration-002-start-date.sql` once in the Supabase SQL Editor.
 
 ## Import from email (optional AI setup)
 
@@ -49,4 +54,5 @@ They click the invite, then sign in on the tracker with their email (a sign-in l
 | `app.js` | All behaviour: sign-in, add/edit/delete, filters, export |
 | `config.js` | Supabase URL + **publishable** key. Never put a secret key here. |
 | `supabase-setup.sql` | Database table and security rules |
+| `supabase-migration-002-start-date.sql` | One-time update adding the expected start date |
 | `supabase/functions/extract-requests/index.ts` | Optional AI email-extraction function (runs in Supabase) |

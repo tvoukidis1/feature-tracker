@@ -8,6 +8,7 @@ create table if not exists public.feature_requests (
   assigned_to     text,
   status          text not null default 'Request'
                   check (status in ('Request','Accepted','In Development','Complete')),
+  start_date      date,
   expected_date   date,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),

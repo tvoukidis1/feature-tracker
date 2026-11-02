@@ -24,6 +24,8 @@
   let channel = null;
 
   function toast(msg, ms = 2600) {
+    if (/start_date/.test(msg) && /column|schema/i.test(msg))
+      msg = "The database needs a one-time update for start dates: run supabase-migration-002-start-date.sql in Supabase.", ms = 8000;
     const t = $("#toast"); t.textContent = msg; t.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), ms);
   }
@@ -43,7 +45,10 @@
     $("#exportBtn").hidden = !u;
     $("#signOutBtn").hidden = !u;
     $("#userEmail").textContent = u?.email || "";
-    if (u && changed) { load(); subscribe(); }
+    if (u && changed) {
+      let v = "list"; try { v = localStorage.getItem("ft-view") || "list"; } catch (_) {}
+      setView(v); load(); subscribe();
+    }
     if (!u && channel) { sb.removeChannel(channel); channel = null; }
   }
 
@@ -95,6 +100,8 @@
   $("#reqForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const payload = formData();
+    if (payload.start_date && payload.expected_date && payload.start_date > payload.expected_date)
+      return toast("Expected start must be on or before the expected completion date.", 4000);
     const btn = $("#saveBtn"); btn.disabled = true;
     const q = editingId
       ? sb.from("feature_requests").update(payload).eq("id", editingId).select().single()
@@ -112,7 +119,7 @@
     const r = rows.find((x) => x.id === id); if (!r) return;
     editingId = id;
     const f = $("#reqForm");
-    for (const k of ["title", "description", "requested_by", "assigned_to", "status", "expected_date"])
+    for (const k of ["title", "description", "requested_by", "assigned_to", "status", "start_date", "expected_date"])
       f.elements[k].value = r[k] ?? (k === "status" ? "Request" : "");
     $("#formTitle").textContent = "Edit request";
     $("#saveBtn").textContent = "Save changes";
@@ -180,6 +187,9 @@
     const fd = $("#filterDev"), cur = fd.value;
     fd.innerHTML = `<option value="">All developers</option>` + devs.map((d) => `<option>${esc(d)}</option>`).join("");
     fd.value = devs.includes(cur) ? cur : "";
+    const od = $("#ovDev"), ocur = od.value;
+    od.innerHTML = `<option value="">All developers</option>` + devs.map((d) => `<option>${esc(d)}</option>`).join("");
+    od.value = devs.includes(ocur) ? ocur : "";
 
     // table
     const today = todayISO();
@@ -193,6 +203,7 @@
         <td><select class="status-select" data-id="${r.id}" style="--c:${STATUS_COLOR[r.status]}">
           ${STATUSES.map((s) => `<option${s === r.status ? " selected" : ""}>${s}</option>`).join("")}
         </select></td>
+        <td>${fmtDate(r.start_date)}</td>
         <td class="${overdue ? "overdue" : ""}" title="${overdue ? "Overdue" : ""}">${fmtDate(r.expected_date)}</td>
         <td class="actions">
           <button class="btn small" data-edit="${r.id}">Edit</button>
@@ -205,6 +216,7 @@
       th.classList.toggle("sorted", th.dataset.sort === sort.key);
       th.classList.toggle("desc", th.dataset.sort === sort.key && sort.desc);
     });
+    renderOverview();
   }
 
   $("#reqTable").addEventListener("click", (e) => {
@@ -227,24 +239,26 @@
   function legend() {
     return `<div class="legend">${STATUSES.map((s) => `<span><i style="--c:${STATUS_COLOR[s]}"></i>${s}</span>`).join("")}</div>`;
   }
-  function header(title) {
-    const n = filtered().length;
+  function header(title, n, verb = "exported") {
     return `<h3>${esc(cfg.appName || "Feature Tracker")} — ${title}</h3>
-      <div class="sub">${n} request${n === 1 ? "" : "s"} · exported ${fmtDate(todayISO())}</div>`;
+      <div class="sub">${n} request${n === 1 ? "" : "s"} · ${verb} ${fmtDate(todayISO())}</div>`;
   }
+  const byDate = (k) => (a, b) => (a[k] || "9999") < (b[k] || "9999") ? -1 : (a[k] || "9999") > (b[k] || "9999") ? 1 : 0;
+  const dateRange = (r) => r.start_date && r.expected_date ? `${fmtDate(r.start_date)} → ${fmtDate(r.expected_date)}`
+    : r.expected_date ? `Due ${fmtDate(r.expected_date)}` : r.start_date ? `Starts ${fmtDate(r.start_date)}` : "No dates";
 
-  function timelineHTML() {
+  function timelineHTML(list, title = "Timeline", verb = "exported") {
     const DAY = 86400000;
-    const list = [...filtered()].sort((a, b) =>
-      (a.expected_date || "9999") < (b.expected_date || "9999") ? -1 : 1);
-    const dated = list.filter((r) => r.expected_date);
-    const start = (r) => new Date((r.created_at || "").slice(0, 10) + "T00:00:00").getTime();
-    const end = (r) => new Date(r.expected_date + "T00:00:00").getTime();
-    const now = new Date(todayISO() + "T00:00:00").getTime();
+    const ts = (d) => new Date(d + "T00:00:00").getTime();
+    list = [...list].sort((a, b) => byDate("start_date")(a, b) || byDate("expected_date")(a, b));
+    // a bar runs from the expected start (or the day it was logged) to the expected completion
+    const barStart = (r) => ts(r.start_date || (r.created_at || todayISO()).slice(0, 10));
+    const barEnd = (r) => r.expected_date ? ts(r.expected_date) : null;
+    const dated = list.filter((r) => r.expected_date || r.start_date);
+    const now = ts(todayISO());
 
-    let min = Math.min(now, ...dated.map(start));
-    let max = Math.max(now + 14 * DAY, ...dated.map(end));
-    // snap to month boundaries
+    let min = Math.min(now, ...dated.map((r) => Math.min(barStart(r), barEnd(r) ?? Infinity)));
+    let max = Math.max(now + 14 * DAY, ...dated.map((r) => Math.max(barEnd(r) ?? 0, barStart(r) + 7 * DAY)));
     const m0 = new Date(min); min = new Date(m0.getFullYear(), m0.getMonth(), 1).getTime();
     const m1 = new Date(max); max = new Date(m1.getFullYear(), m1.getMonth() + 1, 1).getTime();
     const pct = (t) => ((t - min) / (max - min)) * 100;
@@ -258,46 +272,76 @@
     const body = list.map((r) => {
       const lbl = `<div class="lbl"><b title="${esc(r.title)}">${esc(r.title)}</b>
         <small>${esc(r.assigned_to || "Unassigned")} · ${r.status}</small></div>`;
-      if (!r.expected_date) return lbl + `<div class="track">${grid}<div class="nodate">No expected date</div></div>`;
-      let s = Math.min(start(r), end(r)), e2 = end(r);
-      const left = pct(s), width = Math.max(pct(e2 + DAY) - left, 0.6);
+      if (!r.expected_date && !r.start_date) return lbl + `<div class="track">${grid}${todayLine}<div class="nodate">No dates set</div></div>`;
+      const s = barStart(r), e = barEnd(r);
+      const open = e === null;                       // start known, no end yet
+      const s2 = open ? s : Math.min(s, e), e2 = open ? s + 7 * DAY : e + DAY;
+      const left = pct(s2), width = Math.max(pct(e2) - left, 0.6);
+      const late = r.expected_date && r.expected_date < todayISO() && r.status !== "Complete";
+      const est = r.start_date ? "" : " est";       // no explicit start: lighter bar
       return lbl + `<div class="track">${grid}${todayLine}
-        <div class="bar" style="left:${left}%;width:${width}%;--c:${STATUS_COLOR[r.status]}">${fmtDate(r.expected_date)}</div></div>`;
+        <div class="bar${open ? " open" : ""}${est}${late ? " late" : ""}" style="left:${left}%;width:${width}%;--c:${STATUS_COLOR[r.status]}"
+          title="${esc(dateRange(r))}">${esc(dateRange(r))}</div></div>`;
     }).join("");
 
-    return `<div class="sheet">${header("Timeline")}${legend().replace("</div>", `<span><i style="--c:#c92a2a;width:3px"></i>Today</span></div>`)}
+    return `<div class="sheet">${header(title, list.length, verb)}${legend().replace("</div>",
+        `<span><i style="--c:#c92a2a;width:3px"></i>Today</span><span><i style="--c:#adb5bd;opacity:.55"></i>No start date (from date logged)</span></div>`)}
       <div class="gantt">
         <div class="lbl"></div>
-        <div class="axis">${ticks.map((t) => `<div class="tick" style="left:${t.left}%">${t.label}</div>`).join("")}
-          </div>
+        <div class="axis">${ticks.map((t) => `<div class="tick" style="left:${t.left}%">${t.label}</div>`).join("")}</div>
         ${body || `<div></div><div class="nodate">No requests to show.</div>`}
       </div></div>`;
   }
 
-  function boardHTML() {
-    const list = filtered();
-    const cols = STATUSES.map((s) => {
-      const items = list.filter((r) => r.status === s)
-        .sort((a, b) => (a.expected_date || "9999") < (b.expected_date || "9999") ? -1 : 1);
+  function boardHTML(list, title = "Status board", verb = "exported", statuses = STATUSES) {
+    const cols = statuses.map((s) => {
+      const items = list.filter((r) => r.status === s).sort(byDate("expected_date"));
       return `<div class="col" style="--c:${STATUS_COLOR[s]}">
         <h4><span>${s}</span><span>${items.length}</span></h4>
         ${items.map((r) => `<div class="tile"><b>${esc(r.title)}</b>
-          <div class="meta"><span>${esc(r.assigned_to || "Unassigned")}</span><span>${fmtDate(r.expected_date)}</span></div>
+          <div class="meta"><span>${esc(r.assigned_to || "Unassigned")}</span></div>
+          <div class="meta"><span>${esc(dateRange(r))}</span></div>
           ${r.requested_by ? `<div class="meta"><span>Requested by ${esc(r.requested_by)}</span></div>` : ""}
         </div>`).join("") || `<div class="meta" style="color:#6b7280;font-size:12px">Nothing here</div>`}
       </div>`;
     }).join("");
-    return `<div class="sheet">${header("Status board")}<div class="board">${cols}</div></div>`;
+    return `<div class="sheet">${header(title, list.filter((r) => statuses.includes(r.status)).length, verb)}
+      <div class="board" style="grid-template-columns:repeat(${statuses.length},1fr)">${cols}</div></div>`;
   }
 
+  /* ---------- Live overview tab ---------- */
+  let view = "list", overviewMode = "timeline";
+  function renderOverview() {
+    if (view !== "overview") return;
+    const withDone = $("#ovDone").checked;
+    const dev = $("#ovDev").value;
+    const list = rows.filter((r) => (withDone || r.status !== "Complete") && (!dev || r.assigned_to === dev));
+    const statuses = withDone ? STATUSES : STATUSES.filter((s) => s !== "Complete");
+    $("#overviewArea").innerHTML = overviewMode === "timeline"
+      ? timelineHTML(list, withDone ? "All requests" : "Open requests", "live ·")
+      : boardHTML(list, withDone ? "All requests" : "Open requests", "live ·", statuses);
+    document.querySelectorAll(".ovtab").forEach((t) => t.classList.toggle("active", t.dataset.mode === overviewMode));
+  }
+  function setView(v) {
+    view = v;
+    $("#listView").hidden = v !== "list";
+    $("#overviewView").hidden = v !== "overview";
+    document.querySelectorAll(".navtab").forEach((t) => t.classList.toggle("active", t.dataset.view === v));
+    try { localStorage.setItem("ft-view", v); } catch (_) {}
+    renderOverview();
+  }
+  document.querySelectorAll(".navtab").forEach((t) => t.addEventListener("click", () => setView(t.dataset.view)));
+  document.querySelectorAll(".ovtab").forEach((t) => t.addEventListener("click", () => { overviewMode = t.dataset.mode; renderOverview(); }));
+  ["#ovDone", "#ovDev"].forEach((s) => $(s).addEventListener("change", renderOverview));
+
   function renderExport() {
-    $("#exportArea").innerHTML = exportView === "timeline" ? timelineHTML() : boardHTML();
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === exportView));
+    $("#exportArea").innerHTML = exportView === "timeline" ? timelineHTML(filtered()) : boardHTML(filtered());
+    document.querySelectorAll("#exportDlg .tab").forEach((t) => t.classList.toggle("active", t.dataset.view === exportView));
   }
 
   $("#exportBtn").addEventListener("click", () => { renderExport(); $("#exportDlg").showModal(); });
   $("#closeDlg").addEventListener("click", () => $("#exportDlg").close());
-  document.querySelectorAll(".tab").forEach((t) =>
+  document.querySelectorAll("#exportDlg .tab").forEach((t) =>
     t.addEventListener("click", () => { exportView = t.dataset.view; renderExport(); }));
 
   async function snapshot() {
@@ -332,7 +376,7 @@
   const wiz = { items: [], queue: [], idx: 0, saved: 0, sender: "", source: "" };
   const wizSteps = ["#wizPaste", "#wizPick", "#wizReview", "#wizDone"];
   const wizShow = (id) => wizSteps.forEach((s) => ($(s).hidden = s !== id));
-  const FIELDS = ["title", "description", "requested_by", "assigned_to", "status", "expected_date"];
+  const FIELDS = ["title", "description", "requested_by", "assigned_to", "status", "start_date", "expected_date"];
 
   $("#importBtn").addEventListener("click", () => {
     Object.assign(wiz, { items: [], queue: [], idx: 0, saved: 0, sender: "" });
@@ -399,6 +443,7 @@
       title: r.title || "", description: r.description || "",
       requested_by: r.requested_by || wiz.sender,
       expected_date: /^\d{4}-\d{2}-\d{2}$/.test(r.expected_date || "") ? r.expected_date : "",
+      start_date: /^\d{4}-\d{2}-\d{2}$/.test(r.start_date || "") ? r.start_date : "",
       quote: r.description || "", pick: true,
     }));
     const n = wiz.items.length;
@@ -455,6 +500,8 @@
     e.preventDefault();
     const it = captureReview();
     if (it.done) { wiz.idx++; return showReview(); }
+    if (it.start_date && it.expected_date && it.start_date > it.expected_date)
+      return toast("Expected start must be on or before the expected completion date.", 4000);
     const payload = { updated_by: user?.email || null };
     for (const k of FIELDS) payload[k] = it[k] || null;
     payload.status = payload.status || "Request";

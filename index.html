@@ -29,7 +29,28 @@
 
   <!-- Tracker -->
   <main id="appView" hidden>
+    <nav class="navtabs">
+      <button class="navtab active" data-view="list" type="button">Requests</button>
+      <button class="navtab" data-view="overview" type="button">Overview</button>
+    </nav>
     <section class="stats" id="stats"></section>
+
+    <section id="overviewView" class="card" hidden>
+      <div class="row-between ov-bar">
+        <div class="tabs">
+          <button class="tab ovtab active" data-mode="timeline" type="button">Timeline</button>
+          <button class="tab ovtab" data-mode="board" type="button">Status board</button>
+        </div>
+        <div class="row-gap">
+          <select id="ovDev"><option value="">All developers</option></select>
+          <label class="check"><input type="checkbox" id="ovDone"> Include completed</label>
+          <span class="live-dot" title="Updates automatically when anyone changes a request">Live</span>
+        </div>
+      </div>
+      <div id="overviewArea" class="overview-area"></div>
+    </section>
+
+    <div id="listView">
 
     <section class="card">
       <div class="row-between">
@@ -44,14 +65,15 @@
         <label class="span2">Description<textarea name="description" rows="2"></textarea></label>
         <label>Requested by<input name="requested_by" list="peopleList"></label>
         <label>Assigned developer<input name="assigned_to" list="peopleList"></label>
+        <label>Expected start<input name="start_date" type="date"></label>
+        <label>Expected completion<input name="expected_date" type="date"></label>
         <label>Status
           <select name="status">
             <option>Request</option><option>Accepted</option>
             <option>In Development</option><option>Complete</option>
           </select>
         </label>
-        <label>Expected completion<input name="expected_date" type="date"></label>
-        <div class="full row-end">
+        <div class="rest row-end">
           <button class="btn primary" type="submit" id="saveBtn">Add request</button>
         </div>
       </form>
@@ -76,7 +98,8 @@
               <th data-sort="requested_by">Requested by</th>
               <th data-sort="assigned_to">Developer</th>
               <th data-sort="status">Status</th>
-              <th data-sort="expected_date">Expected</th>
+              <th data-sort="start_date">Start</th>
+              <th data-sort="expected_date">Completion</th>
               <th></th>
             </tr>
           </thead>
@@ -85,6 +108,7 @@
         <p id="emptyMsg" class="muted center" hidden>No requests yet. Add the first one above.</p>
       </div>
     </section>
+    </div>
   </main>
 
   <!-- Export dialog -->
@@ -141,11 +165,12 @@
           <label class="span2">Short description<textarea name="description" rows="3"></textarea></label>
           <label>Requested by<input name="requested_by" list="peopleList"></label>
           <label>Assigned developer<input name="assigned_to" list="peopleList"></label>
+          <label>Expected start<input name="start_date" type="date"></label>
+          <label>Expected completion<input name="expected_date" type="date"></label>
           <label>Status
             <select name="status"><option>Request</option><option>Accepted</option><option>In Development</option><option>Complete</option></select>
           </label>
-          <label>Expected completion<input name="expected_date" type="date"></label>
-          <details class="full source"><summary>From the email</summary><p id="wizSource"></p></details>
+          <details class="rest source"><summary>From the email</summary><p id="wizSource"></p></details>
           <div class="full row-between">
             <button class="btn ghost" id="wizPrev" type="button">Back</button>
             <div class="row-gap">

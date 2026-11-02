@@ -44,6 +44,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color:
 .grid-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .grid-form .span2 { grid-column: span 2; }
 .grid-form .full { grid-column: 1 / -1; }
+.grid-form .rest { grid-column: 2 / -1; }
+@media (max-width: 760px) { .grid-form .rest { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .grid-form { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 480px) { .grid-form { grid-template-columns: 1fr; } .grid-form .span2 { grid-column: span 1; } }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
@@ -130,3 +132,22 @@ dialog.wizard { width: min(760px, 96vw); }
 details.source { font-size: 13px; color: var(--muted); }
 details.source p { white-space: pre-wrap; margin: 6px 0 0; padding: 8px 10px; background: var(--bg); border-radius: 6px; }
 .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+
+/* Nav + overview */
+.navtabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.navtab { border: none; background: transparent; color: var(--muted); padding: 9px 14px; font: inherit; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.navtab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.ov-bar { gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.ov-bar select { width: auto; }
+label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+label.check input { width: auto; }
+.live-dot { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.live-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2f9e44; box-shadow: 0 0 0 3px rgba(47,158,68,.2); }
+.overview-area { overflow-x: auto; border-radius: 8px; }
+.overview-area .sheet { padding: 8px 4px; }
+@media (prefers-color-scheme: dark) { .overview-area .sheet { border-radius: 8px; padding: 16px; } }
+.gantt .bar.est { opacity: .6; }
+.gantt .bar.open { border-top-right-radius: 0; border-bottom-right-radius: 0;
+  -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent); mask-image: linear-gradient(90deg, #000 70%, transparent); }
+.gantt .bar.late { box-shadow: inset 0 0 0 2px #c92a2a; }
