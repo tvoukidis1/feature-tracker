@@ -328,5 +328,143 @@
     pdf.save(fileBase() + ".pdf");
   });
 
+  /* ---------- Import-from-email wizard ---------- */
+  const wiz = { items: [], queue: [], idx: 0, saved: 0, sender: "", source: "" };
+  const wizSteps = ["#wizPaste", "#wizPick", "#wizReview", "#wizDone"];
+  const wizShow = (id) => wizSteps.forEach((s) => ($(s).hidden = s !== id));
+  const FIELDS = ["title", "description", "requested_by", "assigned_to", "status", "expected_date"];
+
+  $("#importBtn").addEventListener("click", () => {
+    Object.assign(wiz, { items: [], queue: [], idx: 0, saved: 0, sender: "" });
+    $("#wizText").value = ""; $("#wizPasteMsg").textContent = "";
+    wizShow("#wizPaste"); $("#importDlg").showModal(); $("#wizText").focus();
+  });
+  $("#wizClose").addEventListener("click", () => {
+    if (!$("#wizReview").hidden &&
+        !confirm("Close the wizard? Requests you haven't saved yet will be lost.")) return;
+    $("#importDlg").close();
+  });
+  $("#wizFinish").addEventListener("click", () => $("#importDlg").close());
+  $("#wizBackPaste").addEventListener("click", () => wizShow("#wizPaste"));
+
+  // Rule-based fallback, used when the AI function isn't set up or fails.
+  function heuristicExtract(text) {
+    const lines = text.replace(/\r/g, "").split("\n");
+    const from = lines.map((l) => l.match(/^\s*from:\s*(.+)$/i)).find(Boolean);
+    let sender = from ? from[1].replace(/<[^>]*>/g, "").replace(/["']/g, "").trim() : "";
+    if (/@/.test(sender) && !/\s/.test(sender)) sender = sender.split("@")[0];
+    const body = lines.filter((l) => !/^\s*(from|to|cc|bcc|subject|sent|date):/i.test(l) && !/^\s*>/.test(l));
+
+    const bullet = /^\s*(?:[-*•–]|\d+[.)]|\(?[a-z]\))\s+(.+)$/i;
+    let raw = body.map((l) => l.match(bullet)).filter(Boolean).map((m) => m[1].trim());
+    if (!raw.length) {
+      const ask = /\b(could (we|you)|can (we|you)|would (be great|love|like)|it would be|please|need|we want|wish|should|add|allow|support|ability to)\b/i;
+      raw = body.join(" ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 15 && ask.test(s));
+    }
+    return {
+      sender,
+      requests: raw.map((r) => {
+        const clean = r.replace(/^(could (we|you)|can (we|you)|please|it would be (great|nice) (if|to)|we('d| would) (love|like) (to|if))\s+/i, "");
+        let title = clean.split(/[.:;!?]|\s[-–]\s/)[0].trim();
+        if (title.split(/\s+/).length > 9) title = title.split(/\s+/).slice(0, 9).join(" ") + "…";
+        title = title.charAt(0).toUpperCase() + title.slice(1);
+        return { title, description: r, requested_by: sender, expected_date: "" };
+      }),
+    };
+  }
+
+  async function aiExtract(text) {
+    const { data, error } = await sb.functions.invoke("extract-requests", { body: { text } });
+    if (error) {
+      let msg = error.message;
+      try { const b = await error.context.json(); if (b?.error) msg = b.error; } catch (_) {}
+      throw new Error(msg);
+    }
+    if (!data || !Array.isArray(data.requests)) throw new Error("Unexpected AI response");
+    return data;
+  }
+
+  $("#wizFind").addEventListener("click", async () => {
+    const text = $("#wizText").value.trim();
+    if (!text) { $("#wizPasteMsg").textContent = "Paste an email first."; return; }
+    wiz.source = text;
+    const btn = $("#wizFind"); btn.disabled = true;
+    $("#wizPasteMsg").textContent = "Reading the email…";
+    let result, usedAI = true, aiErr = "";
+    try { result = await aiExtract(text); }
+    catch (e) { usedAI = false; aiErr = e.message; result = heuristicExtract(text); }
+    btn.disabled = false; $("#wizPasteMsg").textContent = "";
+    wiz.sender = result.sender || "";
+    wiz.items = (result.requests || []).map((r) => ({
+      title: r.title || "", description: r.description || "",
+      requested_by: r.requested_by || wiz.sender,
+      expected_date: /^\d{4}-\d{2}-\d{2}$/.test(r.expected_date || "") ? r.expected_date : "",
+      quote: r.description || "", pick: true,
+    }));
+    const n = wiz.items.length;
+    $("#wizPickMsg").innerHTML =
+      (n ? `Found <b>${n}</b> request${n === 1 ? "" : "s"}${wiz.sender ? ` from <b>${esc(wiz.sender)}</b>` : ""}. Untick any you don't want, then review each one.`
+         : "No requests found automatically. Add them manually below.") +
+      (usedAI ? ` <span class="badge">AI</span>` : ` <span class="badge" title="${esc(aiErr)}">basic mode</span>`);
+    renderWizList(); wizShow("#wizPick");
+  });
+
+  function renderWizList() {
+    $("#wizList").innerHTML = wiz.items.map((it, i) => `<li>
+      <input type="checkbox" data-i="${i}" ${it.pick ? "checked" : ""} id="wz${i}">
+      <label for="wz${i}" style="color:inherit;font-size:inherit"><b>${esc(it.title || "(new request)")}</b>
+        ${it.description && it.description !== it.title ? `<span class="desc">${esc(it.description)}</span>` : ""}</label></li>`).join("");
+    $("#wizStartReview").disabled = !wiz.items.some((x) => x.pick);
+  }
+  $("#wizList").addEventListener("change", (e) => {
+    if (e.target.dataset.i) { wiz.items[+e.target.dataset.i].pick = e.target.checked; renderWizList(); }
+  });
+  $("#wizAddItem").addEventListener("click", () => {
+    wiz.items.push({ title: "", description: "", requested_by: wiz.sender, expected_date: "", quote: "", pick: true });
+    renderWizList();
+  });
+  $("#wizStartReview").addEventListener("click", () => {
+    wiz.queue = wiz.items.filter((x) => x.pick).map((x) => ({ ...x, status: "Request", assigned_to: "", done: false }));
+    wiz.idx = 0; wiz.saved = 0; showReview();
+  });
+
+  function showReview() {
+    if (wiz.idx >= wiz.queue.length) {
+      const skipped = wiz.queue.length - wiz.saved;
+      $("#wizDoneMsg").innerHTML = `Added <b>${wiz.saved}</b> new request${wiz.saved === 1 ? "" : "s"} to the tracker.` +
+        (skipped ? ` Skipped ${skipped}.` : "");
+      return wizShow("#wizDone");
+    }
+    const it = wiz.queue[wiz.idx], f = $("#wizForm");
+    for (const k of FIELDS) f.elements[k].value = it[k] || (k === "status" ? "Request" : "");
+    $("#wizCounter").textContent = `Request ${wiz.idx + 1} of ${wiz.queue.length}`;
+    $("#wizBar").style.width = `${(wiz.idx / wiz.queue.length) * 100}%`;
+    $("#wizSource").textContent = it.quote || wiz.source.slice(0, 1500);
+    $("#wizPrev").disabled = wiz.idx === 0;
+    $("#wizSave").textContent = it.done ? "Already saved, next" : "Save & next";
+    wizShow("#wizReview"); f.elements[it.title ? "description" : "title"].focus();
+  }
+  function captureReview() {
+    const f = $("#wizForm"), it = wiz.queue[wiz.idx];
+    for (const k of FIELDS) it[k] = f.elements[k].value.trim();
+    return it;
+  }
+  $("#wizPrev").addEventListener("click", () => { captureReview(); wiz.idx--; showReview(); });
+  $("#wizSkip").addEventListener("click", () => { captureReview(); wiz.idx++; showReview(); });
+  $("#wizForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const it = captureReview();
+    if (it.done) { wiz.idx++; return showReview(); }
+    const payload = { updated_by: user?.email || null };
+    for (const k of FIELDS) payload[k] = it[k] || null;
+    payload.status = payload.status || "Request";
+    const btn = $("#wizSave"); btn.disabled = true;
+    const { data, error } = await sb.from("feature_requests").insert(payload).select().single();
+    btn.disabled = false;
+    if (error) return toast("Save failed: " + error.message, 5000);
+    if (!rows.some((r) => r.id === data.id)) rows.push(data);
+    it.done = true; wiz.saved++; wiz.idx++; render(); showReview();
+  });
+
   initAuth();
 })();

@@ -115,3 +115,18 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1d2330; color: #fff;
   padding: 9px 16px; border-radius: 8px; font-size: 14px; z-index: 50; }
+
+/* Import wizard */
+.row-gap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+dialog.wizard { width: min(760px, 96vw); }
+.wiz-body { padding: 16px; overflow: auto; max-height: calc(92vh - 70px); }
+.wiz-foot { margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+.wiz-list { list-style: none; margin: 0; padding: 0; }
+.wiz-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+.wiz-list input[type=checkbox] { width: auto; margin-top: 3px; }
+.wiz-list .desc { color: var(--muted); font-size: 13px; }
+.wiz-progress { flex: 0 0 160px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.wiz-progress div { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+details.source { font-size: 13px; color: var(--muted); }
+details.source p { white-space: pre-wrap; margin: 6px 0 0; padding: 8px 10px; background: var(--bg); border-radius: 6px; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }

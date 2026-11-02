@@ -34,7 +34,10 @@
     <section class="card">
       <div class="row-between">
         <h2 id="formTitle">New feature request</h2>
-        <button id="cancelEdit" class="btn ghost" type="button" hidden>Cancel edit</button>
+        <div class="row-gap">
+          <button id="importBtn" class="btn" type="button">Import from email</button>
+          <button id="cancelEdit" class="btn ghost" type="button" hidden>Cancel edit</button>
+        </div>
       </div>
       <form id="reqForm" class="grid-form">
         <label class="span2">Title<input name="title" required maxlength="200"></label>
@@ -98,6 +101,67 @@
       </div>
     </div>
     <div id="exportArea" class="export-area"></div>
+  </dialog>
+
+  <!-- Import-from-email wizard -->
+  <dialog id="importDlg" class="wizard">
+    <div class="dlg-head">
+      <h2 id="wizTitle" style="margin:0">Import requests from an email</h2>
+      <button class="btn ghost" id="wizClose" type="button">Close</button>
+    </div>
+    <div class="wiz-body">
+      <!-- Step 1: paste -->
+      <section id="wizPaste">
+        <p class="muted">Paste the whole email (or several). Each request in it becomes a draft you can review before it's saved.</p>
+        <textarea id="wizText" rows="12" placeholder="From: Maria Lopez&#10;Subject: Some ideas for the app&#10;&#10;Hi Theo, a few things we'd love to see..."></textarea>
+        <div class="row-between wiz-foot">
+          <span id="wizPasteMsg" class="muted"></span>
+          <button class="btn primary" id="wizFind" type="button">Find requests</button>
+        </div>
+      </section>
+
+      <!-- Step 2: pick -->
+      <section id="wizPick" hidden>
+        <p class="muted" id="wizPickMsg"></p>
+        <ul id="wizList" class="wiz-list"></ul>
+        <div class="row-between wiz-foot">
+          <button class="btn ghost" id="wizBackPaste" type="button">Back</button>
+          <div class="row-gap">
+            <button class="btn" id="wizAddItem" type="button">Add one manually</button>
+            <button class="btn primary" id="wizStartReview" type="button">Review selected</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: review each -->
+      <section id="wizReview" hidden>
+        <div class="row-between"><b id="wizCounter"></b><div class="wiz-progress"><div id="wizBar"></div></div></div>
+        <form id="wizForm" class="grid-form" style="margin-top:12px">
+          <label class="span2">Title<input name="title" required maxlength="200"></label>
+          <label class="span2">Short description<textarea name="description" rows="3"></textarea></label>
+          <label>Requested by<input name="requested_by" list="peopleList"></label>
+          <label>Assigned developer<input name="assigned_to" list="peopleList"></label>
+          <label>Status
+            <select name="status"><option>Request</option><option>Accepted</option><option>In Development</option><option>Complete</option></select>
+          </label>
+          <label>Expected completion<input name="expected_date" type="date"></label>
+          <details class="full source"><summary>From the email</summary><p id="wizSource"></p></details>
+          <div class="full row-between">
+            <button class="btn ghost" id="wizPrev" type="button">Back</button>
+            <div class="row-gap">
+              <button class="btn" id="wizSkip" type="button">Skip</button>
+              <button class="btn primary" id="wizSave" type="submit">Save &amp; next</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- Step 4: done -->
+      <section id="wizDone" hidden>
+        <p id="wizDoneMsg"></p>
+        <div class="row-end"><button class="btn primary" id="wizFinish" type="button">Done</button></div>
+      </section>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" hidden></div>

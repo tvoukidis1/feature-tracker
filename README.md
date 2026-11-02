@@ -18,6 +18,23 @@ Static site (plain HTML/CSS/JS) hosted on GitHub Pages, with shared data in Supa
    "Deploy from a branch", branch `main`, folder `/ (root)`, Save. The site appears at
    `https://tvoukidis1.github.io/feature-tracker/` within a minute or two.
 
+## Import from email (optional AI setup)
+
+The **Import from email** button lets you paste a coworker's email; it splits it into separate
+requests and walks you through each one (description, developer, status, date) before saving.
+
+It works straight away in *basic mode* (it picks up bullet / numbered lists and request-like sentences).
+For smarter extraction with Claude, deploy the included Edge Function. The API key stays in Supabase,
+never in this repo or the page:
+
+1. Create an API key at <https://console.anthropic.com> (Settings → API keys).
+2. Supabase → *Edge Functions → Secrets* → add `ANTHROPIC_API_KEY` with that key.
+3. Supabase → *Edge Functions → Deploy a new function → Via Editor*. Name it exactly
+   `extract-requests`, replace the sample code with `supabase/functions/extract-requests/index.ts`, Deploy.
+   Leave "Verify JWT" on so only signed-in teammates can use it.
+
+The wizard shows an **AI** badge when the function is working, or **basic mode** when it falls back.
+
 ## Adding teammates
 
 Supabase → *Authentication → Users → Add user → Send invitation*, enter their email.
@@ -32,3 +49,4 @@ They click the invite, then sign in on the tracker with their email (a sign-in l
 | `app.js` | All behaviour: sign-in, add/edit/delete, filters, export |
 | `config.js` | Supabase URL + **publishable** key. Never put a secret key here. |
 | `supabase-setup.sql` | Database table and security rules |
+| `supabase/functions/extract-requests/index.ts` | Optional AI email-extraction function (runs in Supabase) |
