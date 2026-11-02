@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feature Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="appName">Feature Tracker</h1>
+    <div class="topbar-right">
+      <span id="userEmail" class="muted"></span>
+      <button id="exportBtn" class="btn primary" hidden>Export</button>
+      <button id="signOutBtn" class="btn" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <!-- Sign in -->
+  <main id="authView" class="card narrow" hidden>
+    <h2>Sign in</h2>
+    <p class="muted">Enter your work email and we'll send you a sign-in link. Ask the tracker owner to invite you if you don't have access yet.</p>
+    <form id="authForm" class="stack">
+      <input id="authEmail" type="email" required placeholder="you@company.com" autocomplete="email">
+      <button class="btn primary" type="submit">Send sign-in link</button>
+    </form>
+    <p id="authMsg" class="muted"></p>
+  </main>
+
+  <!-- Tracker -->
+  <main id="appView" hidden>
+    <section class="stats" id="stats"></section>
+
+    <section class="card">
+      <div class="row-between">
+        <h2 id="formTitle">New feature request</h2>
+        <button id="cancelEdit" class="btn ghost" type="button" hidden>Cancel edit</button>
+      </div>
+      <form id="reqForm" class="grid-form">
+        <label class="span2">Title<input name="title" required maxlength="200"></label>
+        <label class="span2">Description<textarea name="description" rows="2"></textarea></label>
+        <label>Requested by<input name="requested_by" list="peopleList"></label>
+        <label>Assigned developer<input name="assigned_to" list="peopleList"></label>
+        <label>Status
+          <select name="status">
+            <option>Request</option><option>Accepted</option>
+            <option>In Development</option><option>Complete</option>
+          </select>
+        </label>
+        <label>Expected completion<input name="expected_date" type="date"></label>
+        <div class="full row-end">
+          <button class="btn primary" type="submit" id="saveBtn">Add request</button>
+        </div>
+      </form>
+      <datalist id="peopleList"></datalist>
+    </section>
+
+    <section class="card">
+      <div class="filters">
+        <input id="search" type="search" placeholder="Search title, requester, developer…">
+        <select id="filterStatus">
+          <option value="">All statuses</option>
+          <option>Request</option><option>Accepted</option>
+          <option>In Development</option><option>Complete</option>
+        </select>
+        <select id="filterDev"><option value="">All developers</option></select>
+      </div>
+      <div class="table-wrap">
+        <table id="reqTable">
+          <thead>
+            <tr>
+              <th data-sort="title">Title</th>
+              <th data-sort="requested_by">Requested by</th>
+              <th data-sort="assigned_to">Developer</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="expected_date">Expected</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p id="emptyMsg" class="muted center" hidden>No requests yet. Add the first one above.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Export dialog -->
+  <dialog id="exportDlg">
+    <div class="dlg-head">
+      <div class="tabs">
+        <button class="tab active" data-view="timeline">Timeline</button>
+        <button class="tab" data-view="board">Status board</button>
+      </div>
+      <div class="dlg-actions">
+        <button class="btn" id="dlPng">Download PNG</button>
+        <button class="btn" id="dlPdf">Download PDF</button>
+        <button class="btn ghost" id="closeDlg">Close</button>
+      </div>
+    </div>
+    <div id="exportArea" class="export-area"></div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
