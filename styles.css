@@ -170,6 +170,18 @@ tr.detail-row > td { background: var(--bg); padding: 0 8px 14px; }
 .detail-grid dd { margin: 2px 0 0; word-break: break-word; }
 tr.flash > td { animation: flash 1.5s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--accent) 25%, transparent); } }
+/* Edit cue: the form card and its fields glow briefly when Edit is clicked */
+.card.edit-glow { animation: edit-glow-card 1.6s ease-out; }
+.card.edit-glow :is(input, textarea, select) { animation: edit-glow-field 1.6s ease-out; }
+@keyframes edit-glow-card {
+  0%, 25% { border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
+                0 0 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+}
+@keyframes edit-glow-field {
+  0%, 25% { border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
 [data-open] { cursor: pointer; }
 .tile[data-open]:hover { border-color: #3b5bdb; }
 .gantt .lbl b[data-open]:hover { text-decoration: underline; }

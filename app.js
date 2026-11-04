@@ -157,8 +157,20 @@
     $("#saveBtn").textContent = "Save changes";
     $("#cancelEdit").hidden = false;
     f.scrollIntoView({ behavior: "smooth", block: "center" });
-    f.elements.title.focus();
+    f.elements.title.focus({ preventScroll: true });
+    glowEditForm();
   }
+  // Brief glow on the form card + its fields so the eye follows the scroll.
+  // Removing the class and forcing a reflow restarts the animation on every Edit click.
+  function glowEditForm() {
+    const card = $("#formCard");
+    card.classList.remove("edit-glow");
+    void card.offsetWidth;
+    card.classList.add("edit-glow");
+  }
+  $("#formCard").addEventListener("animationend", (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove("edit-glow");
+  });
   function resetForm() {
     editingId = null; $("#reqForm").reset();
     $("#formTitle").textContent = "New feature request";
